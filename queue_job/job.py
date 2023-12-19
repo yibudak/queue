@@ -88,14 +88,19 @@ def identity_exact(job_):
     Usually you will probably always want to include at least the name of the
     model and method.
     """
+    hasher = identity_exact_hasher(job_)
+    return hasher.hexdigest()
+
+
+def identity_exact_hasher(job_):
+    """Prepare hasher object for identity_exact."""
     hasher = hashlib.sha1()
     hasher.update(job_.model_name.encode('utf-8'))
     hasher.update(job_.method_name.encode('utf-8'))
     hasher.update(str(sorted(job_.recordset.ids)).encode('utf-8'))
     hasher.update(str(job_.args).encode('utf-8'))
     hasher.update(str(sorted(job_.kwargs.items())).encode('utf-8'))
-
-    return hasher.hexdigest()
+    return hasher
 
 
 @total_ordering
@@ -533,6 +538,7 @@ class Job(object):
             AND state = %s;
         """
         self.env.cr.execute(sql, (PENDING, self.uuid, DONE, WAIT_DEPENDENCIES))
+        self.env["queue.job"].invalidate_cache(["state"])
 
     def store(self):
         """Store the Job"""
