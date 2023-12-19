@@ -65,7 +65,7 @@ class BaseImportImport(models.TransientModel):
             (translated_model_name, self.file_name)
         attachment = self._create_csv_attachment(
             import_fields, data, options, self.file_name)
-        delayed_job = self.with_delay(description=description)._split_file(
+        delayed_job = self.with_delay(description=description, channel="import_channel")._split_file(
             model_name=self.res_model,
             translated_model_name=translated_model_name,
             attachment=attachment,
@@ -167,7 +167,7 @@ class BaseImportImport(models.TransientModel):
                 file_name=root + '-' + chunk + ext)
             delayed_job = self.with_context(
                 job_batch=batch).with_delay(
-                description=description, priority=priority)._import_one_chunk(
+                description=description, priority=priority, channel="import_channel")._import_one_chunk(
                     model_name=model_name,
                     attachment=attachment,
                     options=options)
