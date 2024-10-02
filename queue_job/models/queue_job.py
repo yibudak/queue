@@ -94,7 +94,7 @@ class QueueJob(models.Model):
     state = fields.Selection(STATES, readonly=True, required=True, index=True)
     priority = fields.Integer()
     exc_name = fields.Char(string="Exception", readonly=True)
-    exc_message = fields.Char(string="Exception Message", readonly=True)
+    exc_message = fields.Char(string="Exception Message", readonly=True, tracking=True)
     exc_info = fields.Text(string="Exception Info", readonly=True)
     result = fields.Text(readonly=True)
 
@@ -139,7 +139,7 @@ class QueueJob(models.Model):
             self._cr.execute(
                 "CREATE INDEX queue_job_identity_key_state_partial_index "
                 "ON queue_job (identity_key) WHERE state in ('pending', "
-                "'enqueued') AND identity_key IS NOT NULL;"
+                "'enqueued', 'wait_dependencies') AND identity_key IS NOT NULL;"
             )
 
     @api.depends("records")
@@ -344,7 +344,7 @@ class QueueJob(models.Model):
     def requeue(self):
         jobs_to_requeue = self.filtered(lambda job_: job_.state != WAIT_DEPENDENCIES)
         jobs_to_requeue._change_job_state(PENDING)
-        return True
+        return jobs_to_requeue
 
     def _message_post_on_failure(self):
         # subscribe the users now to avoid to subscribe them
@@ -379,8 +379,9 @@ class QueueJob(models.Model):
         """
         self.ensure_one()
         return _(
-            "Something bad happened during the execution of the job. "
-            "More details in the 'Exception Information' section."
+            "Something bad happened during the execution of job %s. "
+            "More details in the 'Exception Information' section.",
+            self.uuid,
         )
 
     def _needaction_domain_get(self):
@@ -422,20 +423,23 @@ class QueueJob(models.Model):
                     break
         return True
 
-    def requeue_stuck_jobs(self, enqueued_delta=5, started_delta=0):
+    def requeue_stuck_jobs(self, enqueued_delta=1, started_delta=0):
         """Fix jobs that are in a bad states
 
         :param in_queue_delta: lookup time in minutes for jobs
-                                that are in enqueued state
+                               that are in enqueued state,
+                               0 means that it is not checked
 
         :param started_delta: lookup time in minutes for jobs
-                                that are in enqueued state,
-                                0 means that it is not checked
+                              that are in started state,
+                              0 means that it is not checked,
+                              -1 will use `--limit-time-real` config value
         """
-        self._get_stuck_jobs_to_requeue(
+        if started_delta == -1:
+            started_delta = (config["limit_time_real"] // 60) + 1
+        return self._get_stuck_jobs_to_requeue(
             enqueued_delta=enqueued_delta, started_delta=started_delta
         ).requeue()
-        return True
 
     def _get_stuck_jobs_domain(self, queue_dl, started_dl):
         domain = []
