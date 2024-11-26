@@ -15,7 +15,7 @@ from odoo.models import fix_import_export_id_paths
 from odoo.addons.queue_job.exception import FailedJobError
 
 # options defined in base_import/import.js
-OPT_HAS_HEADER = "headers"
+OPT_HAS_HEADER = "has_headers"
 OPT_SEPARATOR = "separator"
 OPT_QUOTING = "quoting"
 OPT_ENCODING = "encoding"
@@ -47,7 +47,9 @@ class BaseImportImport(models.TransientModel):
 
         # get the translated model name to build
         # a meaningful job description
-        search_result = self.env["ir.model"].name_search(self.res_model, operator="=")
+        search_result = (
+            self.env["ir.model"].sudo().name_search(self.res_model, operator="=")
+        )
         if search_result:
             translated_model_name = search_result[0][1]
         else:

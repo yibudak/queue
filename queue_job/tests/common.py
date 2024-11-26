@@ -228,6 +228,7 @@ class JobsTrap:
             return job.graph_uuid or ""
 
         sorted_jobs = sorted(self.enqueued_jobs, key=by_graph)
+        self.enqueued_jobs = []
         for graph_uuid, jobs in groupby(sorted_jobs, key=by_graph):
             if graph_uuid:
                 self._perform_graph_jobs(jobs)
@@ -252,11 +253,14 @@ class JobsTrap:
 
     def _add_job(self, *args, **kwargs):
         job = Job(*args, **kwargs)
-        self.enqueued_jobs.append(job)
+        if not job.identity_key or all(
+            j.identity_key != job.identity_key for j in self.enqueued_jobs
+        ):
+            self.enqueued_jobs.append(job)
 
-        patcher = mock.patch.object(job, "store")
-        self._store_patchers.append(patcher)
-        patcher.start()
+            patcher = mock.patch.object(job, "store")
+            self._store_patchers.append(patcher)
+            patcher.start()
 
         job_args = kwargs.pop("args", None) or ()
         job_kwargs = kwargs.pop("kwargs", None) or {}
